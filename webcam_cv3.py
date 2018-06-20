@@ -5,6 +5,8 @@ import boto3
 import util
 
 rekog = boto3.client('rekognition')
+s3 = boto3.client('s3')
+
 curr_frame = 0
 frame_skip = 10
 
@@ -32,19 +34,24 @@ while True:
         minSize=(30, 30)
     )
 
-    if curr_frame % frame_skip == 0:
-        bin_img = util.convertCvFrame2Bytes(gray)
-
-        rfaces = rekog.detect_faces(Image={'Bytes': bin_img})
-        for fd in rfaces['FaceDetails']:
-            for lm in fd['Landmarks']:
-                y = int(frame.shape[0] * lm['Y'])
-                x = int(frame.shape[1] * lm['X'])
-                cv2.circle(frame, (x, y), 1, (0, 255, 0))
-
     # Draw a rectangle around the faces
     for (x, y, w, h) in faces:
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+
+        roi = gray[y:y+h, x:x+w]
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)    
+        
+        if curr_frame % frame_skip == 0:
+            bin_img = util.convertCvFrame2Bytes(gray)
+
+            rfaces = rekog.detect_faces(Image={'Bytes': bin_img})
+            for fd in rfaces['FaceDetails']:
+                for lm in fd['Landmarks']:
+                    y = int(frame.shape[0] * lm['Y'])
+                    x = int(frame.shape[1] * lm['X'])
+                    cv2.circle(frame, (x, y), 1, (0, 255, 0))
+                    
+            stream_img_roi = util.convertCvFrame2Stream(roi)
+            s3.upload_fileobj(stream_img_roi,"prueba-face-rekog", str(curr_frame) + ".jpg")        
 
     # Display the resulting frame
     cv2.imshow('Video', frame)
